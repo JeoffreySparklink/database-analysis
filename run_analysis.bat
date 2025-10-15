@@ -1,65 +1,36 @@
 @echo off
-REM Database Analysis Batch Script
-REM This script helps set up and run database analysis tasks
+setlocal
 
-echo ========================================
-echo    Database Analysis Tool
-echo ========================================
-echo.
+REM Configuration
+set "SERVER=SPR-JEOFFREY-C\SQLEXPRESS"
+set "DATABASE=MESRecovery"
+set "OUT_DIR=Analysis"
+set "OUT_FILE=MESanalysis.csv"
+set "OUT_PATH=%OUT_DIR%\%OUT_FILE%"
 
-REM Check if Python is installed
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Python is not installed or not in PATH
-    echo Please install Python to continue
-    pause
-    exit /b 1
+REM Ensure sqlcmd is available
+where sqlcmd >nul 2>&1
+if errorlevel 1 (
+  echo ERROR: sqlcmd not found on PATH.
+  echo Please install SQLCMD and retry.
+  exit /b 1
 )
 
-echo Python is available
-echo.
-
-REM Create virtual environment if it doesn't exist
-if not exist "venv" (
-    echo Creating virtual environment...
-    python -m venv venv
-    echo Virtual environment created
-) else (
-    echo Virtual environment already exists
+REM Create output directory if it doesn't exist
+if not exist "%OUT_DIR%" (
+  mkdir "%OUT_DIR%" 2>nul
 )
 
-echo.
+REM Write CSV header
+> "%OUT_PATH%" echo TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,IS_PRIMARY_KEY,IS_FOREIGN_KEY
 
-REM Activate virtual environment
-echo Activating virtual environment...
-call venv\Scripts\activate.bat
-
-REM Install requirements if requirements.txt exists
-if exist "requirements.txt" (
-    echo Installing dependencies...
-    pip install -r requirements.txt
-) else (
-    echo No requirements.txt found. Installing common database analysis packages...
-    pip install pandas sqlalchemy psycopg2-binary pymongo matplotlib seaborn
+REM Query INFORMATION_SCHEMA and append to CSV with PK/FK flags
+sqlcmd -S "%SERVER%" -d "%DATABASE%" -h -1 -W -s "," -Q "SET NOCOUNT ON; SELECT c.TABLE_SCHEMA, c.TABLE_NAME, c.COLUMN_NAME, CASE WHEN EXISTS ( SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu ON kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME AND kcu.TABLE_SCHEMA = tc.TABLE_SCHEMA AND kcu.TABLE_NAME = tc.TABLE_NAME WHERE tc.TABLE_SCHEMA = c.TABLE_SCHEMA AND tc.TABLE_NAME = c.TABLE_NAME AND kcu.COLUMN_NAME = c.COLUMN_NAME AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY' ) THEN 'TRUE' ELSE 'FALSE' END AS IS_PRIMARY_KEY, CASE WHEN EXISTS ( SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu ON kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME AND kcu.TABLE_SCHEMA = tc.TABLE_SCHEMA AND kcu.TABLE_NAME = tc.TABLE_NAME WHERE tc.TABLE_SCHEMA = c.TABLE_SCHEMA AND tc.TABLE_NAME = c.TABLE_NAME AND kcu.COLUMN_NAME = c.COLUMN_NAME AND tc.CONSTRAINT_TYPE = 'FOREIGN KEY' ) THEN 'TRUE' ELSE 'FALSE' END AS IS_FOREIGN_KEY FROM INFORMATION_SCHEMA.COLUMNS c ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION;" >> "%OUT_PATH%"
+if errorlevel 1 (
+  echo ERROR: Failed to query database %DATABASE% on %SERVER%.
+  exit /b 1
 )
 
-echo.
-echo Setup complete!
-echo.
-echo Available commands:
-echo - To run analysis: python main.py (if main.py exists)
-echo - To start interactive session: python
-echo - To deactivate environment: deactivate
-echo.
-
-REM Check if main analysis script exists
-if exist "main.py" (
-    echo Running main analysis script...
-    python main.py
-) else (
-    echo No main.py found. You can create analysis scripts and run them manually.
-)
-
-echo.
-echo Analysis complete. Press any key to exit...
-pause >nul
+echo Export complete: %OUT_PATH%
+endlocal
+exit /b 0
