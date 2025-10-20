@@ -6,7 +6,9 @@ set "SERVER=SPR-JEOFFREY-C\SQLEXPRESS"
 set "DATABASE=MESRecovery"
 set "OUT_DIR=Analysis"
 set "OUT_FILE=MESanalysis.csv"
+set "JSON_FILE=MESanalysis.json"
 set "OUT_PATH=%OUT_DIR%\%OUT_FILE%"
+set "JSON_PATH=%OUT_DIR%\%JSON_FILE%"
 
 REM Ensure sqlcmd is available
 where sqlcmd >nul 2>&1
@@ -31,6 +33,26 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Export complete: %OUT_PATH%
+echo CSV export complete: %OUT_PATH%
+
+REM Convert CSV to JSON format (comma delimiter) and validate
+echo Converting CSV to JSON format...
+if exist "%JSON_PATH%" del /f /q "%JSON_PATH%" >nul 2>&1
+powershell -Command "$csv = Import-Csv -Delimiter ',' '%OUT_PATH%'; $json = $csv | ConvertTo-Json -Depth 10; $json | Out-File -FilePath '%JSON_PATH%' -Encoding utf8"
+if errorlevel 1 (
+  echo ERROR: Failed to convert CSV to JSON.
+  exit /b 1
+)
+
+REM Validate JSON
+powershell -Command "try { Get-Content -Raw '%JSON_PATH%' | ConvertFrom-Json | Out-Null; exit 0 } catch { Write-Error 'Invalid JSON output.'; exit 1 }"
+if errorlevel 1 (
+  echo ERROR: Invalid JSON generated. See '%JSON_PATH%'.
+  exit /b 1
+)
+
+echo JSON export complete: %JSON_PATH%
+echo.
+echo Both exports completed successfully!
 endlocal
 exit /b 0
