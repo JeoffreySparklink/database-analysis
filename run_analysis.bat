@@ -9,6 +9,8 @@ set "OUT_FILE=MESanalysis.csv"
 set "JSON_FILE=MESanalysis.json"
 set "OUT_PATH=%OUT_DIR%\%OUT_FILE%"
 set "JSON_PATH=%OUT_DIR%\%JSON_FILE%"
+set "INGRESS_DIR=ingress"
+set "INGRESS2_DIR=ingress2"
 
 REM Ensure sqlcmd is available
 where sqlcmd >nul 2>&1
@@ -34,6 +36,14 @@ if errorlevel 1 (
 )
 
 echo CSV export complete: %OUT_PATH%
+
+REM Augment CSV with DELIVERED_BY_MOJ column based on ingress folders
+echo Tagging rows with DELIVERED_BY_MOJ...
+powershell -Command "$path = '%OUT_PATH%'; $ing = '%INGRESS_DIR%'; $ing2 = '%INGRESS2_DIR%'; if (-not (Test-Path $path)) { throw 'CSV not found: ' + $path }; $rows = Import-Csv -Delimiter ',' $path | ForEach-Object { $t = $_.TABLE_NAME; $p1 = Join-Path $ing ($t + '.csv'); $p2 = Join-Path $ing2 ('dbo_' + $t + '.csv'); $exists = (Test-Path $p1) -and (Test-Path $p2); $_ | Add-Member -NotePropertyName 'DELIVERED_BY_MOJ' -NotePropertyValue ($(if ($exists) { 'TRUE' } else { 'FALSE' })) -Force; $_ }; $rows | Export-Csv -Delimiter ',' -NoTypeInformation -Encoding UTF8 $path"
+if errorlevel 1 (
+  echo ERROR: Failed to tag CSV with DELIVERED_BY_MOJ.
+  exit /b 1
+)
 
 REM Convert CSV to JSON format (comma delimiter) and validate
 echo Converting CSV to JSON format...

@@ -1,0 +1,14 @@
+# Ingress data folders (large, generated/imported)
+ingress/
+ingress2/
+
+# Analysis outputs
+Analysis/MESanalysis.csv
+Analysis/MESanalysis.json
+
+# Common OS/editor cruft
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
