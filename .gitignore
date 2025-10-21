@@ -1,6 +1,7 @@
 # Ingress data folders (large, generated/imported)
 ingress/
 ingress2/
+import/
 
 # Analysis outputs
 Analysis/MESanalysis.csv
